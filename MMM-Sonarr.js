@@ -5,6 +5,7 @@ Module.register("MMM-Sonarr", {
         upcomingLimit: 5,
         historyLimit: 5,
         updateInterval: 1 * 60 * 1000, // 1 minute
+        language: "en" // Language configuration (default: English)
     },
 
     start: function() {
@@ -21,25 +22,38 @@ Module.register("MMM-Sonarr", {
         const wrapper = document.createElement("div");
         wrapper.className = "sonarr-wrapper";
 
+        // Translate section headers based on language
+        const translations = {
+            en: {
+                upcoming: "Upcoming Shows",
+                history: "Recently Downloaded"
+            },
+            no: {
+                upcoming: "Upcoming Shows",
+                history: "Recently Downloaded"
+            }
+        };
+        const currentLang = translations[this.config.language || "en"];
+
         if (this.config.upcomingLimit > 0) {
-            const upcomingSection = this.createSection("Upcoming Shows", this.upcoming, this.config.upcomingLimit);
+            const upcomingSection = this.createSection(currentLang.upcoming, this.upcoming, this.config.upcomingLimit, "Upcoming Shows");
             wrapper.appendChild(upcomingSection);
         }
 
         if (this.config.historyLimit > 0) {
-            const historySection = this.createSection("Recently Downloaded", this.history, this.config.historyLimit);
+            const historySection = this.createSection(currentLang.history, this.history, this.config.historyLimit, "Recently Downloaded");
             wrapper.appendChild(historySection);
         }
 
         return wrapper;
     },
 
-    createSection: function(title, data, limit) {
+    createSection: function(displayTitle, data, limit, apiTitle) {
         const section = document.createElement("div");
         section.className = "sonarr-section";
 
         const header = document.createElement("h2");
-        header.textContent = title;
+        header.textContent = displayTitle; // Display the translated title
         section.appendChild(header);
 
         const list = document.createElement("ul");
@@ -49,7 +63,7 @@ Module.register("MMM-Sonarr", {
         
         data.forEach(item => {
             let entryText;
-            if (title === "Upcoming Shows") {
+            if (apiTitle === "Upcoming Shows") { // Use original API title for logic
                 entryText = `${item.series.title} - ${item.seasonNumber}x${item.episodeNumber}`;
             } else {
                 entryText = `${item.series.title} - ${item.episode.seasonNumber}x${item.episode.episodeNumber}`;
