@@ -23,7 +23,7 @@ module.exports = NodeHelper.create({
             this.getHistory();
             this.loadTranslationFile();
 
-        } 
+        }
     },
 
     loadTranslationFile: function() {
