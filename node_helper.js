@@ -42,11 +42,11 @@ module.exports = NodeHelper.create({
             const translation = JSON.parse(content);
             
             console.log(`${this.name}: Translation loaded successfully:`, translation);
-            this.sendSocketNotification("TRANSLATION", translation);
+            this.sendSocketNotification("SONARR_TRANSLATION", translation);
         } catch(err) {
             console.error(`${this.name}: Error loading translation:`, err.message);
             console.log(`${this.name}: Sending default translations`);
-            this.sendSocketNotification("TRANSLATION", {
+            this.sendSocketNotification("SONARR_TRANSLATION", {
                 upcoming: "Upcoming Episodes",
                 recent: "Recent Episodes"
             });

@@ -106,7 +106,7 @@ Module.register("MMM-Sonarr", {
             this.history = payload;
             this.loaded = true;
             this.updateDom();
-        } else if (notification === "TRANSLATION") {
+        } else if (notification === "SONARR_TRANSLATION") {
             Log.info("MMM-Sonarr: Received translation", payload);
             this.translations = payload;
             this.loaded = true;
