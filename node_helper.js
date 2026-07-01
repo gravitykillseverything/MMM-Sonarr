@@ -22,7 +22,10 @@ module.exports = NodeHelper.create({
             this.getUpcoming();
             this.getHistory();
             this.loadTranslationFile();
-
+            this.sendSocketNotification("MMM_SONARR_READY");
+        } else if (notification === "UPDATE_SONARR") {
+            this.getUpcoming();
+            this.getHistory();
         }
     },
 
