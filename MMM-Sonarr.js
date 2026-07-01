@@ -9,6 +9,8 @@ Module.register("MMM-Sonarr", {
         language: "en",
     },
 
+    intervalId: 0,
+
     start: function() {
         Log.info("Starting MMM-Sonarr module");
         
@@ -112,6 +114,17 @@ Module.register("MMM-Sonarr", {
             this.loaded = true;
             this.updateDom();
             Log.info("MMM-Sonarr: Starting Sonarr data fetch");
+        } else if (notification == 'MMM_SONARR_READY') {
+            Log.debug('MMM-Sonarr is Ready');
+            this.startLoop();
         }
+    },
+
+    startLoop: function () {
+        let self = this;
+        if (self.intervalId != 0) return;
+        self.intervalId = window.setInterval(() => {
+            this.sendSocketNotification("UPDATE_SONARR");
+        }, this.config.updateInterval);
     },
 });
