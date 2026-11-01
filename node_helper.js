@@ -34,24 +34,15 @@ module.exports = NodeHelper.create({
     },
 
     loadTranslationFile: function() {
+        const filePath = path.join(__dirname, "translations", `${this.config.language}.json`);
         try {
-            const translationDir = path.join('modules', 'MMM-Sonarr', "translations");
-            const filePath = path.join(translationDir, `${this.config.language}.json`);
-            
-            if (!fs.existsSync(filePath)) {
-                throw new Error(`Translation file not found for language: ${this.config.language}`);
-            }
-
-            const content = fs.readFileSync(filePath, 'utf8');
-            const translation = JSON.parse(content);
-            
+            const translation = JSON.parse(fs.readFileSync(filePath, "utf8"));
             this.sendSocketNotification("SONARR_TRANSLATION", translation);
-        } catch(err) {
-            console.error(`${this.name}: Error loading translation:`, err.message);
-            console.log(`${this.name}: Sending default translations`);
+        } catch (err) {
+            console.error(`${this.name}: Error loading translation ${filePath}:`, err.message);
             this.sendSocketNotification("SONARR_TRANSLATION", {
                 upcoming: "Upcoming Episodes",
-                recent: "Recent Episodes"
+                recent: "Recent Episodes",
             });
         }
     },

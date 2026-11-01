@@ -10,8 +10,6 @@ Module.register("MMM-Sonarr", {
     },
 
     start: function() {
-        Log.info("Starting MMM-Sonarr module");
-        
         this.loaded = false;
         this.upcoming = [];
         this.history = [];
@@ -27,8 +25,6 @@ Module.register("MMM-Sonarr", {
     },
 
     getDom: function() {
-        Log.info("MMM-Sonarr: getDom called, loaded state:", this.loaded);
-        
         const wrapper = document.createElement("div");
         wrapper.className = "sonarr-wrapper";
 
@@ -108,26 +104,20 @@ Module.register("MMM-Sonarr", {
     },
 
     socketNotificationReceived: function(notification, payload) {
-        Log.info(`MMM-Sonarr: Received socket notification: ${notification}`);
-        
         if (notification === "SONARR_UPCOMING") {
-            Log.info("MMM-Sonarr: Received upcoming data:", payload);
             this.upcoming = payload;
             delete this.errors.upcoming;
             this.loaded = true;
             this.updateDom();
         } else if (notification === "SONARR_HISTORY") {
-            Log.info("MMM-Sonarr: Received history data:", payload);
             this.history = payload;
             delete this.errors.recent;
             this.loaded = true;
             this.updateDom();
         } else if (notification === "SONARR_TRANSLATION") {
-            Log.info("MMM-Sonarr: Received translation", payload);
             this.translations = payload;
             this.loaded = true;
             this.updateDom();
-            Log.info("MMM-Sonarr: Starting Sonarr data fetch");
         } else if (notification === "SONARR_ERROR") {
             this.errors[payload.section] = payload.message;
             this.loaded = true;
