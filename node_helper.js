@@ -1,10 +1,11 @@
 const NodeHelper = require("node_helper");
 const https = require("https");
 const http = require("http");
-const url = require("url");
 const path = require("path");
 const fs = require("fs");
 
+
+const REQUEST_TIMEOUT = 10 * 1000;
 
 module.exports = NodeHelper.create({
     start: function() {
@@ -13,27 +14,30 @@ module.exports = NodeHelper.create({
     },
 
     socketNotificationReceived: function(notification, payload) {
-        console.log(`${this.name}: Received notification: ${notification}`);
-        
         if (notification === "START_SONARR") {
-            console.log(`${this.name}: Starting Sonarr data fetch with config:`, payload);
             this.config = payload;
             this.started = true;
             this.getUpcoming();
             this.getHistory();
             this.loadTranslationFile();
-
+            this.scheduleUpdate();
         }
     },
 
+    // One timer for the whole server: a page reload or a second browser restarts it instead of adding another.
+    scheduleUpdate: function() {
+        clearInterval(this.updateTimer);
+        this.updateTimer = setInterval(() => {
+            this.getUpcoming();
+            this.getHistory();
+        }, this.config.updateInterval);
+    },
+
     loadTranslationFile: function() {
-        console.log(`${this.name}: Translation load started`);
         try {
             const translationDir = path.join('modules', 'MMM-Sonarr', "translations");
             const filePath = path.join(translationDir, `${this.config.language}.json`);
             
-            console.log(`${this.name}: Looking for translation file at:`, filePath);
-
             if (!fs.existsSync(filePath)) {
                 throw new Error(`Translation file not found for language: ${this.config.language}`);
             }
@@ -41,7 +45,6 @@ module.exports = NodeHelper.create({
             const content = fs.readFileSync(filePath, 'utf8');
             const translation = JSON.parse(content);
             
-            console.log(`${this.name}: Translation loaded successfully:`, translation);
             this.sendSocketNotification("SONARR_TRANSLATION", translation);
         } catch(err) {
             console.error(`${this.name}: Error loading translation:`, err.message);
@@ -54,7 +57,6 @@ module.exports = NodeHelper.create({
     },
 
     getUpcoming: function() {
-        console.log(`${this.name}: Fetching upcoming episodes`);
         var apiUrl = `${this.config.baseUrl}/api/v3/calendar`;
         var currentDate = new Date();
         var futureDate = new Date(currentDate.getTime() + 24 * 24 * 60 * 60 * 1000);
@@ -66,18 +68,13 @@ module.exports = NodeHelper.create({
             includeEpisodeFile: "false"
         });
     
-        this.sendRequest(apiUrl, params, (response) => {
-            if (!Array.isArray(response)) {
-                console.error(`${this.name}: Unexpected response format from Sonarr API`);
-                return;
-            }
-            console.log(`${this.name}: Sending upcoming data to module`);
+        this.sendRequest("upcoming", apiUrl, params, (response) => {
+            if (!Array.isArray(response)) throw new Error("calendar is not a list");
             this.sendSocketNotification("SONARR_UPCOMING", response);
         });
     },
 
     getHistory: function() {
-        console.log(`${this.name}: Fetching history`);
         var apiUrl = `${this.config.baseUrl}/api/v3/history`;
         var params = new URLSearchParams({
             page: 1,
@@ -86,59 +83,66 @@ module.exports = NodeHelper.create({
             sortDirection: "descending",
             includeSeries: true,
             includeEpisode: true,
-            eventType: 1,
+            eventType: 3, // downloadFolderImported (1 is grabbed)
         });
 
-        this.sendRequest(apiUrl, params, (response) => {
-            console.log(`${this.name}: Sending history data to module`);
-            if (response && response.records) {
-                this.sendSocketNotification("SONARR_HISTORY", response.records);
-            } else {
-                console.error(`${this.name}: Invalid history response:`, response);
-            }
+        this.sendRequest("recent", apiUrl, params, (response) => {
+            if (!response || !Array.isArray(response.records)) throw new Error("history has no records");
+            this.sendSocketNotification("SONARR_HISTORY", response.records);
         });
     },
 
-    sendRequest: function(apiUrl, params, callback) {
-        var fullUrl = `${apiUrl}?${params.toString()}`;
-        console.log(`${this.name}: Sending request to:`, fullUrl);
-        
-        var parsedUrl = url.parse(fullUrl);
-        
+    // Calls the API. A good reply goes to onData; any failure (no connection, timeout, HTTP error, a reply
+    // onData can't use) is logged and shown on the mirror for this section until it loads again.
+    sendRequest: function(section, apiUrl, params, onData) {
+        var parsedUrl = new URL(`${apiUrl}?${params.toString()}`);
+        var protocol = parsedUrl.protocol === 'https:' ? https : http;
+        let finished = false;
+        var fail = (message, detail) => {
+            if (finished) return;
+            finished = true;
+            this.sendError(section, message, detail);
+        };
+
         var options = {
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port,
-            path: parsedUrl.path,
             method: 'GET',
             headers: {
                 "X-Api-Key": this.config.apiKey,
             },
         };
 
-        var protocol = parsedUrl.protocol === 'https:' ? https : http;
-
-        var req = protocol.request(options, (res) => {
-            var data = '';
-
+        var req = protocol.request(parsedUrl, options, (res) => {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+                res.resume();
+                fail(res.statusCode === 401 ? "API key rejected (401)" : `HTTP ${res.statusCode}`);
+                return;
+            }
+            let data = '';
             res.on('data', (chunk) => {
                 data += chunk;
             });
-
+            res.on('error', (error) => fail("connection lost", error.message));
             res.on('end', () => {
+                if (finished) return;
+                finished = true;
                 try {
-                    console.log(`${this.name}: Response received, parsing JSON`);
-                    var jsonData = JSON.parse(data);
-                    callback(jsonData);
+                    onData(JSON.parse(data));
                 } catch (error) {
-                    console.error(`${this.name}: Error parsing JSON:`, error);
+                    this.sendError(section, "unexpected reply", error.message);
                 }
             });
         });
 
-        req.on('error', (error) => {
-            console.error(`${this.name}: Error making request:`, error);
+        req.setTimeout(REQUEST_TIMEOUT, () => {
+            fail(`no answer after ${REQUEST_TIMEOUT / 1000}s`);
+            req.destroy();
         });
-
+        req.on('error', (error) => fail(`can't connect (${error.code || error.message})`));
         req.end();
+    },
+
+    sendError: function(section, message, detail) {
+        console.error(`${this.name}: ${section}: ${message}${detail ? ` (${detail})` : ""}`);
+        this.sendSocketNotification("SONARR_ERROR", { section: section, message: `Sonarr: ${message}` });
     },
 });

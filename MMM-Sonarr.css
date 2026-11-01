@@ -18,3 +18,8 @@
 .sonarr-section li {
     margin-bottom: 5px;
 }
+
+.sonarr-error {
+    font-size: 12px;
+    margin-bottom: 10px;
+}

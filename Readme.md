@@ -39,6 +39,7 @@ Add the following configuration to your `config/config.js` file:
         upcomingLimit: 5,
         historyLimit: 5,
         updateInterval: 1 * 60 * 1000, // 1 minute
+        language: "en",
     }
 },
 ```
@@ -52,6 +53,7 @@ Add the following configuration to your `config/config.js` file:
 | `upcomingLimit` | Number of upcoming shows to display |
 | `historyLimit` | Number of recently downloaded episodes to display |
 | `updateInterval` | How often to update the data (in milliseconds) |
+| `language` | Language of the headings: `en`, `de`, `es` or `fr` (default `en`) |
 
 
 ## Contributing
